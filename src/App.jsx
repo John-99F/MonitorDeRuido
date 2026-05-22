@@ -19,8 +19,19 @@ function App() {
   const [historial, setHistorial] = useState([]);
   const [ultimoNivelReal, setUltimoNivelReal] = useState(0);
 
+  // --- NUEVA FUNCIÓN DE CONVERSIÓN A DECIBELES ---
+  // Convierte la intensidad calculada (0 a ~2048) a un rango acústico humano (30-100 dB)
+  const calcularDecibeles = (intensidad) => {
+    if (!intensidad || intensidad < 10) return 30; // Silencio absoluto
+    if (intensidad > 2048) return 100;             // Límite de saturación máximo
+    
+    // Fórmula logarítmica basada en la rúbrica de intensidad
+    const dB = 30 + (70 * (Math.log10(intensidad) / Math.log10(2048)));
+    return Math.round(dB);
+  };
+
   useEffect(() => {
-    // Referencia al nodo del historial estructurado en Firebase
+    // Referencia al nodo del historial estructurado en Firebase (MANTENIDO INTACTO)
     const historialRef = ref(db, 'historial_ruido');
     
     // Suscripción al flujo de datos en tiempo real
@@ -37,7 +48,8 @@ function App() {
           return {
             id: key,
             bruto: valorBruto,
-            intensidad: intensidadReal
+            intensidad: intensidadReal,
+            decibeles: calcularDecibeles(intensidadReal) // Guardamos los dB para el historial
           };
         });
         
@@ -53,12 +65,15 @@ function App() {
     });
   }, []);
 
-  // Control centralizado del comportamiento del semáforo visual
+  // Control centralizado del comportamiento del semáforo visual (MANTENIDO POR INTENSIDAD)
   const obtenerColorMedidor = (intensidad) => {
     if (intensidad > LIMITE_PERMITIDO) return '#F44336'; // Rojo - Límite excedido
     if (intensidad >= 150) return '#FFC107';            // Amarillo - Alerta / Ruido Moderado
     return '#4CAF50';                                    // Verde - Nivel Seguro / Silencio
   };
+
+  // Obtenemos los decibeles actuales para el círculo principal
+  const dbActuales = calcularDecibeles(ultimoNivelReal);
 
   return (
     <div style={{ padding: '30px', fontFamily: 'Arial, sans-serif', backgroundColor: '#f5f5f5', minHeight: '100vh' }}>
@@ -81,8 +96,12 @@ function App() {
             Intensidad de Ruido Actual
           </h4>
           
-          <div style={{ fontSize: '54px', fontWeight: 'bold', color: obtenerColorMedidor(ultimoNivelReal) }}>
-            {ultimoNivelReal} <span style={{ fontSize: '22px', color: '#666', fontWeight: 'normal' }}>unidades</span>
+          {/* Muestra Decibeles grandes para el Profesor e Intensidad en pequeño abajo */}
+          <div style={{ fontSize: '54px', fontWeight: 'bold', color: obtenerColorMedidor(ultimoNivelReal), lineHeight: '1.1' }}>
+            {dbActuales} <span style={{ fontSize: '24px', color: '#666', fontWeight: 'bold' }}>dB</span>
+          </div>
+          <div style={{ fontSize: '14px', color: '#888', marginTop: '5px' }}>
+            Fuerza de la Onda: {ultimoNivelReal} unidades
           </div>
 
           {/* Renderizado Condicional del Aviso Crítico de Exceso de Ruido */}
@@ -119,11 +138,11 @@ function App() {
             ) : (
               // Invertimos el array para visualizar el último cambio en la cabecera
               [...historial].reverse().map((registro) => (
-                <div key={registro.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 5px', borderBottom: '1px solid #eee', fontSize: '14px' }}>
+                <div key={registro.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 5px', borderBottom: '1px solid #eee', fontSize: '14px', alignItems: 'center' }}>
                   <span style={{ color: '#666', fontFamily: 'monospace' }}>ID: {registro.id.substring(0, 8)}</span>
-                  <span style={{ color: '#888' }}>Lectura Bruta: {registro.bruto}</span>
+                  <span style={{ color: '#888' }}>Raw: {registro.bruto}</span>
                   <span style={{ fontWeight: 'bold', color: obtenerColorMedidor(registro.intensidad) }}>
-                    Fuerza: {registro.intensidad}
+                    {registro.decibeles} dB <span style={{ fontWeight: 'normal', fontSize: '12px', color: '#999' }}>({registro.intensidad} F)</span>
                   </span>
                 </div>
               ))
